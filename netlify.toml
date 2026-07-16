@@ -1,0 +1,10 @@
+# Netlify configuration for the Agape Life Ministry Next.js site.
+# The official Next.js runtime plugin handles server components,
+# server actions, middleware, and ISR revalidation automatically.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

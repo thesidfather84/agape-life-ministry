@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+@theme {
+  /* Deep midnight blue */
+  --color-midnight-950: #070d20;
+  --color-midnight-900: #0d1633;
+  --color-midnight-800: #142049;
+  --color-midnight-700: #1d2c63;
+  --color-midnight-600: #27397e;
+  --color-midnight-500: #35499b;
+  --color-midnight-200: #c3cdec;
+  --color-midnight-100: #dde3f5;
+  --color-midnight-50: #eef1fa;
+
+  /* Soft royal purple */
+  --color-royal-900: #33245c;
+  --color-royal-800: #423073;
+  --color-royal-700: #533a8b;
+  --color-royal-600: #64489f;
+  --color-royal-500: #7757b5;
+  --color-royal-400: #9678cc;
+  --color-royal-300: #b49ddd;
+  --color-royal-200: #d2c4ea;
+  --color-royal-100: #e9e1f6;
+  --color-royal-50: #f5f1fb;
+
+  /* Warm gold */
+  --color-gold-700: #8a6a12;
+  --color-gold-600: #a88117;
+  --color-gold-500: #c09a2b;
+  --color-gold-400: #d4af37;
+  --color-gold-300: #e3c766;
+  --color-gold-200: #f0dfa3;
+  --color-gold-100: #f8f0d8;
+  --color-gold-50: #fcf8ec;
+
+  /* Soft cream */
+  --color-cream-50: #fdfbf6;
+  --color-cream-100: #faf6ec;
+  --color-cream-200: #f3ecdc;
+  --color-cream-300: #e9dfc8;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-lora), Georgia, "Times New Roman", serif;
+
+  --animate-fade-rise: fade-rise 0.7s ease-out both;
+  --animate-glow-drift: glow-drift 14s ease-in-out infinite alternate;
+
+  @keyframes fade-rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes glow-drift {
+    from {
+      transform: translate3d(-4%, -2%, 0) scale(1);
+      opacity: 0.7;
+    }
+    to {
+      transform: translate3d(4%, 3%, 0) scale(1.08);
+      opacity: 1;
+    }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-cream-50);
+  color: var(--color-midnight-900);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-gold-200);
+  color: var(--color-midnight-900);
+}
+
+/* Visible, high-contrast focus for keyboard users */
+:focus-visible {
+  outline: 3px solid var(--color-gold-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Soft celestial hero backdrop: layered radial light, no images required */
+.hero-light {
+  background:
+    radial-gradient(60rem 32rem at 70% -10%, rgba(212, 175, 55, 0.16), transparent 60%),
+    radial-gradient(50rem 30rem at 15% 15%, rgba(119, 87, 181, 0.28), transparent 65%),
+    radial-gradient(70rem 42rem at 50% 110%, rgba(39, 57, 126, 0.5), transparent 70%),
+    linear-gradient(180deg, var(--color-midnight-950) 0%, var(--color-midnight-900) 60%, var(--color-midnight-800) 100%);
+}
+
+/* Gentle stained-glass shimmer strip */
+.stained-glass-band {
+  background: linear-gradient(
+    90deg,
+    var(--color-royal-500) 0%,
+    var(--color-midnight-600) 25%,
+    var(--color-gold-400) 50%,
+    var(--color-royal-400) 75%,
+    var(--color-midnight-600) 100%
+  );
+}
