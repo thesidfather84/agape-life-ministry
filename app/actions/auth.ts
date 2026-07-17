@@ -3,21 +3,32 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { supabaseConfigProblem } from "@/lib/supabase/config";
 import { checkRateLimit } from "@/lib/rate-limit";
 import type { FormState } from "@/lib/form-state";
+
+/**
+ * Blocks sign-in with a friendly message when Supabase isn't set up,
+ * and logs the exact misconfigured variable so the function logs
+ * pinpoint the problem (e.g. a placeholder value left in Netlify).
+ */
+function configErrorState(): FormState | null {
+  const problem = supabaseConfigProblem();
+  if (!problem) return null;
+  console.error(`[auth] Sign-in blocked: ${problem}`);
+  return {
+    status: "error",
+    message:
+      "The website is not connected to its database yet. Please finish the Supabase setup described in the README.",
+  };
+}
 
 export async function signIn(
   _prev: FormState,
   formData: FormData
 ): Promise<FormState> {
-  if (!isSupabaseConfigured()) {
-    return {
-      status: "error",
-      message:
-        "The website is not connected to its database yet. Please finish the Supabase setup described in the README.",
-    };
-  }
+  const configError = configErrorState();
+  if (configError) return configError;
 
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
@@ -77,13 +88,8 @@ export async function pastorSignIn(
   _prev: FormState,
   formData: FormData
 ): Promise<FormState> {
-  if (!isSupabaseConfigured()) {
-    return {
-      status: "error",
-      message:
-        "The website is not connected to its database yet. Please finish the Supabase setup described in the README.",
-    };
-  }
+  const configError = configErrorState();
+  if (configError) return configError;
 
   const username = String(formData.get("username") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
