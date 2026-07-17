@@ -88,32 +88,72 @@ export async function POST(request: Request) {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   // The service role key stays server-side only; it is never sent to
-  // the browser and never included in any response.
-  const supabaseKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // the browser and never included in any response. If it is missing
+  // or rejected, the anon key still works: RLS explicitly allows
+  // anonymous inserts into contact_messages.
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseKey) {
+  if (!supabaseUrl || (!serviceKey && !anonKey)) {
     console.error("[contact] Supabase environment variables are missing.");
     return json(500, { ok: false, message: GENERIC_ERROR });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  const keys = [
+    ...(serviceKey ? [{ key: serviceKey, kind: "service" }] : []),
+    ...(anonKey ? [{ key: anonKey, kind: "anon" }] : []),
+  ];
 
-  const { error } = await supabase.from("contact_messages").insert({
-    name,
-    contact,
-    subject: subject || null,
-    message,
-  });
+  let inserted = false;
+  for (const { key, kind } of keys) {
+    const supabase = createClient(supabaseUrl, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
-  if (error) {
+    const { error } = await supabase.from("contact_messages").insert({
+      name,
+      contact,
+      subject: subject || null,
+      message,
+    });
+
+    if (!error) {
+      inserted = true;
+      break;
+    }
+
     // Full details server-side only; the visitor sees a generic message.
     console.error(
-      `[contact] Supabase insert failed: code=${error.code} message=${error.message}`
+      `[contact] Supabase insert failed (${kind} key): code=${error.code} message=${error.message}`
     );
+
+    // If the database predates migration 0002 the subject column
+    // doesn't exist yet — retry without it, folding the subject into
+    // the message so nothing the visitor wrote is lost.
+    if (/subject/i.test(error.message)) {
+      const { error: retryError } = await supabase
+        .from("contact_messages")
+        .insert({
+          name,
+          contact,
+          message: subject ? `[Subject: ${subject}]\n\n${message}` : message,
+        });
+      if (!retryError) {
+        console.warn(
+          "[contact] Saved without subject column — run supabase/migrations/0002_sermons_and_email.sql to add it."
+        );
+        inserted = true;
+        break;
+      }
+      console.error(
+        `[contact] Retry without subject failed (${kind} key): code=${retryError.code} message=${retryError.message}`
+      );
+    }
+    // Otherwise fall through and try the next key (e.g. a rejected
+    // service key falling back to the anon key).
+  }
+
+  if (!inserted) {
     return json(500, { ok: false, message: GENERIC_ERROR });
   }
 
