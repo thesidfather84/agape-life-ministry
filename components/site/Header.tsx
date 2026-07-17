@@ -59,6 +59,12 @@ export default function Header() {
           >
             Plan Your Visit
           </Link>
+          <Link
+            href="/pastor-login"
+            className="ml-1 rounded-full px-3.5 py-2 text-sm font-medium text-midnight-700 hover:bg-midnight-50"
+          >
+            Pastor Login
+          </Link>
         </nav>
 
         <button
@@ -103,6 +109,13 @@ export default function Header() {
             className="mt-3 block rounded-xl bg-gold-400 px-4 py-3.5 text-center text-base font-semibold text-midnight-950 hover:bg-gold-300"
           >
             Plan Your Visit
+          </Link>
+          <Link
+            href="/pastor-login"
+            onClick={() => setOpen(false)}
+            className="mt-2 block rounded-xl px-4 py-3.5 text-center text-base font-medium text-midnight-700 hover:bg-midnight-50"
+          >
+            Pastor Login
           </Link>
         </nav>
       )}

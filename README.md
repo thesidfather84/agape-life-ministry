@@ -80,7 +80,10 @@ designed for deployment on Netlify at **https://agapelifeministry.org**.
    Then run
    [`supabase/migrations/0002_sermons_and_email.sql`](supabase/migrations/0002_sermons_and_email.sql)
    — this adds the sermons table (with its own RLS) and the optional
-   contact-message subject line.
+   contact-message subject line. Then run
+   [`supabase/migrations/0003_pastor_uploads.sql`](supabase/migrations/0003_pastor_uploads.sql)
+   — this enables phone video uploads (sermons storage bucket with
+   public-read / admin-write policies, and the `video_url` column).
 3. Then run [`supabase/seed.sql`](supabase/seed.sql) — this adds the church
    information, a sample Daily Word, and the standing Sunday Worship
    services so the site is never empty.
@@ -120,6 +123,10 @@ before setup is finished.
    - `NEXT_PUBLIC_SITE_URL` = `https://agapelifeministry.org`
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Settings → API; used only
+     server-side by the contact endpoint)
+   - `PASTOR_LOGIN_EMAIL` = the Supabase Auth email behind the simple
+     Pastor Login (default `pastor@agapelifeministry.org`)
    - `RESEND_API_KEY` (see the email setup section below)
    - `PASTOR_NOTIFICATION_EMAIL` = `arthurwarning49@gmail.com`
    - `EMAIL_FROM_ADDRESS` = `website@agapelifeministry.org`
@@ -203,11 +210,29 @@ Scripture*, *Add New Sermon*, *Add an Event*, *Edit Church Information*,
 *View Prayer Requests*, *View Contact Messages*, *Manage Homepage
 Announcement*.
 
-**Posting a sermon (under a minute):** post the sermon as a public Reel
-on Facebook → open the admin → *Add New Sermon* → paste the Reel link
-(Share → Copy Link) → *Publish Sermon*. Older sermons stay on the
-Sermons page automatically, and the *Feature* button chooses which
-sermon appears at the top and on the homepage.
+**The simple Pastor page (`/pastor`):** the pastor signs in at
+`/pastor-login` with the username `pastor` and their password ("Pastor
+Login" link in the website menu). The username maps server-side to the
+Supabase Auth account in `PASTOR_LOGIN_EMAIL`; the password is stored
+hashed by Supabase and never appears in the code. Create that account
+in Supabase → Authentication → Add user, and set the password there.
+
+On the Pastor page they can, in one column with large buttons:
+- Post a sermon from a Facebook Reel link, **or upload a video straight
+  from their phone's camera roll** (MP4/MOV/WebM, with a progress bar,
+  a retry on failure, and an optional picture). Videos are stored in
+  Supabase Storage, never in the database.
+- Flip each sermon's big 🟢 ON / 🔴 OFF toggle to show or hide it
+  publicly (nothing is deleted), and choose the one Featured sermon
+  that leads the homepage and Sermons page.
+
+Note: Supabase's default per-file upload limit is 50 MB. For longer
+videos, raise it under Supabase → Storage → Settings, or post to
+Facebook and paste the link instead.
+
+**Posting from Facebook (under a minute):** post the sermon as a public
+Reel → open `/pastor` → paste the Reel link (Share → Copy Link) →
+*Publish Sermon*. Older sermons stay on the Sermons page automatically.
 
 Placeholders that still need real values are clearly marked inside
 **Edit Church Information** (church phone number and email).

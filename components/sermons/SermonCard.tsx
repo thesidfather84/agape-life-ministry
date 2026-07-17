@@ -12,7 +12,7 @@ export default function SermonCard({
   sermon: Sermon;
   featured?: boolean;
 }) {
-  const canEmbed = sermon.embed_url && isSafeEmbedUrl(sermon.embed_url);
+  const canEmbed = Boolean(sermon.embed_url && isSafeEmbedUrl(sermon.embed_url));
 
   return (
     <article
@@ -21,9 +21,21 @@ export default function SermonCard({
       }`}
     >
       <div className="p-5 pb-0 sm:p-7 sm:pb-0">
-        {canEmbed ? (
+        {sermon.video_url ? (
+          /* Uploaded video — plays right on the page, never autoplays. */
+          <video
+            controls
+            preload="metadata"
+            playsInline
+            poster={sermon.thumbnail_url ?? undefined}
+            className="aspect-video w-full rounded-2xl bg-midnight-950 object-contain"
+          >
+            <source src={sermon.video_url} />
+            Your browser can&apos;t play this video.
+          </video>
+        ) : canEmbed ? (
           <SermonEmbed embedUrl={sermon.embed_url!} title={sermon.title} />
-        ) : (
+        ) : sermon.facebook_url ? (
           <a
             href={sermon.facebook_url}
             target="_blank"
@@ -35,7 +47,7 @@ export default function SermonCard({
               Watch this sermon on Facebook
             </span>
           </a>
-        )}
+        ) : null}
       </div>
 
       <div className="flex flex-1 flex-col p-5 sm:p-7">
@@ -63,15 +75,17 @@ export default function SermonCard({
         )}
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <a
-            href={sermon.facebook_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-royal-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-royal-500"
-          >
-            <ExternalLink className="h-4 w-4" aria-hidden />
-            Watch on Facebook
-          </a>
+          {sermon.facebook_url && (
+            <a
+              href={sermon.facebook_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-royal-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-royal-500"
+            >
+              <ExternalLink className="h-4 w-4" aria-hidden />
+              Watch on Facebook
+            </a>
+          )}
           <ShareButton
             title={`Sermon — ${sermon.title}`}
             text={`${sermon.title} — ${sermon.speaker_name}, Agape Life Ministry`}

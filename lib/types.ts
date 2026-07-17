@@ -82,7 +82,8 @@ export interface Sermon {
   sermon_date: string; // ISO date
   scripture_reference: string | null;
   description: string | null;
-  facebook_url: string;
+  facebook_url: string | null;
+  video_url: string | null;
   embed_url: string | null;
   thumbnail_url: string | null;
   is_featured: boolean;

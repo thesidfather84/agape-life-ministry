@@ -7,14 +7,18 @@ import { isSupabaseConfigured, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/sup
  * Only runs on /admin routes so public pages stay fully cacheable.
  */
 export async function middleware(request: NextRequest) {
-  const isLoginPage = request.nextUrl.pathname === "/admin/login";
+  const { pathname } = request.nextUrl;
+  const isPastorArea = pathname === "/pastor" || pathname.startsWith("/pastor/");
+  const isLoginPage =
+    pathname === "/admin/login" || pathname === "/pastor-login";
+  const loginPath = isPastorArea ? "/pastor-login" : "/admin/login";
 
   if (!isSupabaseConfigured()) {
     // Before setup, keep the admin area closed except for the login
     // page, which explains what still needs to be configured.
     if (isLoginPage) return NextResponse.next();
     const url = request.nextUrl.clone();
-    url.pathname = "/admin/login";
+    url.pathname = loginPath;
     return NextResponse.redirect(url);
   }
 
@@ -43,13 +47,13 @@ export async function middleware(request: NextRequest) {
 
   if (!user && !isLoginPage) {
     const url = request.nextUrl.clone();
-    url.pathname = "/admin/login";
+    url.pathname = loginPath;
     return NextResponse.redirect(url);
   }
 
   if (user && isLoginPage) {
     const url = request.nextUrl.clone();
-    url.pathname = "/admin";
+    url.pathname = pathname === "/pastor-login" ? "/pastor" : "/admin";
     return NextResponse.redirect(url);
   }
 
@@ -57,5 +61,11 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/admin"],
+  matcher: [
+    "/admin/:path*",
+    "/admin",
+    "/pastor/:path*",
+    "/pastor",
+    "/pastor-login",
+  ],
 };

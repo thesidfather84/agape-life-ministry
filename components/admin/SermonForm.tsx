@@ -40,16 +40,25 @@ export default function SermonForm({ sermon }: { sermon?: Sermon }) {
 
       <form action={formAction} className="space-y-5" noValidate>
         {sermon && <input type="hidden" name="id" value={sermon.id} />}
+        {sermon?.video_url && (
+          <input type="hidden" name="video_url" value={sermon.video_url} />
+        )}
 
         <div>
           <label htmlFor="sm-url" className={label}>
             Facebook Reel link
+            {sermon?.video_url && (
+              <span className="font-normal text-midnight-600">
+                {" "}
+                (optional — this sermon uses an uploaded video)
+              </span>
+            )}
           </label>
           <input
             id="sm-url"
             name="facebook_url"
             type="url"
-            required
+            required={!sermon?.video_url}
             inputMode="url"
             value={url}
             onChange={(e) => {

@@ -167,14 +167,24 @@ export async function saveSermon(
     return { status: "error", message: "Please choose the sermon date." };
   }
 
-  const parsed = parseFacebookUrl(rawUrl);
-  if (!parsed.ok || !parsed.url) {
-    return {
-      status: "error",
-      message:
-        parsed.error ??
-        "Please paste the sermon's Facebook link before saving.",
-    };
+  // Sermons uploaded from the pastor's phone have a video instead of
+  // a Facebook link; editing them must not demand one.
+  const existingVideoUrl = trimmed(formData, "video_url");
+
+  let facebookUrl: string | null = null;
+  let embedUrl: string | null = null;
+  if (rawUrl || !existingVideoUrl) {
+    const parsed = parseFacebookUrl(rawUrl);
+    if (!parsed.ok || !parsed.url) {
+      return {
+        status: "error",
+        message:
+          parsed.error ??
+          "Please paste the sermon's Facebook link before saving.",
+      };
+    }
+    facebookUrl = parsed.url;
+    embedUrl = parsed.embedUrl ?? null;
   }
 
   const record = {
@@ -183,8 +193,8 @@ export async function saveSermon(
     sermon_date: sermonDate,
     scripture_reference: trimmed(formData, "scripture_reference") || null,
     description: trimmed(formData, "description") || null,
-    facebook_url: parsed.url,
-    embed_url: parsed.embedUrl ?? null,
+    facebook_url: facebookUrl,
+    embed_url: embedUrl,
     published,
   };
 
@@ -206,6 +216,135 @@ export async function deleteSermon(formData: FormData): Promise<void> {
     refreshPublicPages();
   }
   redirect("/admin/sermons?deleted=1");
+}
+
+/** Storage URLs may only point at this site's own sermons bucket. */
+function isOwnStorageUrl(url: string): boolean {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  return (
+    base.startsWith("http") &&
+    url.startsWith(`${base}/storage/v1/object/public/sermons/`)
+  );
+}
+
+/**
+ * The simple pastor page: publish a sermon from either a Facebook
+ * Reel link or a video uploaded from the phone (already stored in
+ * Supabase Storage by the time this runs).
+ */
+export async function savePastorSermon(
+  _prev: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const supabase = await requireAdmin();
+
+  const title = trimmed(formData, "title");
+  const sermonDate = trimmed(formData, "sermon_date");
+  const speakerName =
+    trimmed(formData, "speaker_name") || "Founder / Pastor Arthur Warning";
+  const rawUrl = trimmed(formData, "facebook_url");
+  const videoUrl = trimmed(formData, "video_url");
+  const thumbnailUrl = trimmed(formData, "thumbnail_url");
+
+  if (!title) {
+    return { status: "error", message: "Please give the sermon a title." };
+  }
+  if (!sermonDate) {
+    return { status: "error", message: "Please choose the sermon date." };
+  }
+
+  let facebookUrl: string | null = null;
+  let embedUrl: string | null = null;
+
+  if (videoUrl) {
+    if (!isOwnStorageUrl(videoUrl)) {
+      return {
+        status: "error",
+        message: "The uploaded video didn't save correctly. Please try again.",
+      };
+    }
+  } else {
+    const parsed = parseFacebookUrl(rawUrl);
+    if (!parsed.ok || !parsed.url) {
+      return {
+        status: "error",
+        message:
+          parsed.error ??
+          "Please paste the Facebook Reel link or upload a video.",
+      };
+    }
+    facebookUrl = parsed.url;
+    embedUrl = parsed.embedUrl ?? null;
+  }
+
+  if (thumbnailUrl && !isOwnStorageUrl(thumbnailUrl)) {
+    return {
+      status: "error",
+      message: "The picture didn't save correctly. Please try again.",
+    };
+  }
+
+  const { error } = await supabase.from("sermons").insert({
+    title,
+    speaker_name: speakerName,
+    sermon_date: sermonDate,
+    scripture_reference: trimmed(formData, "scripture_reference") || null,
+    description: trimmed(formData, "description") || null,
+    facebook_url: facebookUrl,
+    embed_url: embedUrl,
+    video_url: videoUrl || null,
+    thumbnail_url: thumbnailUrl || null,
+    published: true,
+  });
+
+  if (error) return { status: "error", message: SAVE_ERROR };
+
+  refreshPublicPages();
+  return {
+    status: "success",
+    message:
+      "Your sermon is published! It is now live on the website's Sermons page.",
+  };
+}
+
+/** Big ON/OFF visibility toggle — no confirmation, nothing deleted. */
+export async function setSermonPublished(formData: FormData): Promise<void> {
+  const supabase = await requireAdmin();
+  const id = trimmed(formData, "id");
+  const publish = formData.get("publish") === "true";
+  if (id) {
+    await supabase.from("sermons").update({ published: publish }).eq("id", id);
+    refreshPublicPages();
+    revalidatePath("/pastor");
+    revalidatePath("/admin/sermons");
+  }
+}
+
+/** Featured toggle — turning one on turns every other sermon off. */
+export async function setSermonFeatured(formData: FormData): Promise<void> {
+  const supabase = await requireAdmin();
+  const id = trimmed(formData, "id");
+  const feature = formData.get("feature") === "true";
+  if (id) {
+    if (feature) {
+      await supabase
+        .from("sermons")
+        .update({ is_featured: false })
+        .eq("is_featured", true);
+      await supabase
+        .from("sermons")
+        .update({ is_featured: true })
+        .eq("id", id);
+    } else {
+      await supabase
+        .from("sermons")
+        .update({ is_featured: false })
+        .eq("id", id);
+    }
+    refreshPublicPages();
+    revalidatePath("/pastor");
+    revalidatePath("/admin/sermons");
+  }
 }
 
 /** Mark one sermon as featured and clear the flag everywhere else. */
