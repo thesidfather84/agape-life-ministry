@@ -1,8 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { checkRateLimit } from "@/lib/rate-limit";
 import type { FormState } from "@/lib/form-state";
 
 export async function signIn(
@@ -24,6 +26,20 @@ export async function signIn(
     return {
       status: "error",
       message: "Please enter both your email and your password.",
+    };
+  }
+
+  // Slow down brute-force attempts: 5 tries per 15 minutes per address.
+  const h = await headers();
+  const ip =
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    h.get("x-real-ip") ||
+    "unknown";
+  if (!checkRateLimit(`login:${ip}:${email.toLowerCase()}`, 5, 15 * 60_000)) {
+    return {
+      status: "error",
+      message:
+        "Too many sign-in attempts. Please wait 15 minutes and try again.",
     };
   }
 

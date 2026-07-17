@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { parseFacebookUrl } from "@/lib/facebook";
 import type { FormState } from "@/lib/form-state";
 
 async function requireAdmin() {
@@ -141,6 +142,85 @@ export async function deleteEvent(formData: FormData): Promise<void> {
     refreshPublicPages();
   }
   redirect("/admin/events?deleted=1");
+}
+
+// ------------------------------------------------------------------- Sermons
+
+export async function saveSermon(
+  _prev: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const supabase = await requireAdmin();
+
+  const id = trimmed(formData, "id");
+  const published = formData.get("published") === "published";
+  const title = trimmed(formData, "title");
+  const speakerName =
+    trimmed(formData, "speaker_name") || "Founder / Pastor Arthur Warning";
+  const sermonDate = trimmed(formData, "sermon_date");
+  const rawUrl = trimmed(formData, "facebook_url");
+
+  if (!title) {
+    return { status: "error", message: "Please give the sermon a title." };
+  }
+  if (!sermonDate) {
+    return { status: "error", message: "Please choose the sermon date." };
+  }
+
+  const parsed = parseFacebookUrl(rawUrl);
+  if (!parsed.ok || !parsed.url) {
+    return {
+      status: "error",
+      message:
+        parsed.error ??
+        "Please paste the sermon's Facebook link before saving.",
+    };
+  }
+
+  const record = {
+    title,
+    speaker_name: speakerName,
+    sermon_date: sermonDate,
+    scripture_reference: trimmed(formData, "scripture_reference") || null,
+    description: trimmed(formData, "description") || null,
+    facebook_url: parsed.url,
+    embed_url: parsed.embedUrl ?? null,
+    published,
+  };
+
+  const { error } = id
+    ? await supabase.from("sermons").update(record).eq("id", id)
+    : await supabase.from("sermons").insert(record);
+
+  if (error) return { status: "error", message: SAVE_ERROR };
+
+  refreshPublicPages();
+  redirect(`/admin/sermons?saved=${published ? "published" : "draft"}`);
+}
+
+export async function deleteSermon(formData: FormData): Promise<void> {
+  const supabase = await requireAdmin();
+  const id = trimmed(formData, "id");
+  if (id) {
+    await supabase.from("sermons").delete().eq("id", id);
+    refreshPublicPages();
+  }
+  redirect("/admin/sermons?deleted=1");
+}
+
+/** Mark one sermon as featured and clear the flag everywhere else. */
+export async function featureSermon(formData: FormData): Promise<void> {
+  const supabase = await requireAdmin();
+  const id = trimmed(formData, "id");
+  if (id) {
+    await supabase
+      .from("sermons")
+      .update({ is_featured: false })
+      .eq("is_featured", true);
+    await supabase.from("sermons").update({ is_featured: true }).eq("id", id);
+    refreshPublicPages();
+  }
+  redirect("/admin/sermons?featured=1");
 }
 
 // ------------------------------------------------------------------ Settings

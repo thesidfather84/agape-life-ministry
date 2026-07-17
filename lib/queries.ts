@@ -10,6 +10,7 @@ import type {
   ChurchEvent,
   ChurchSettings,
   DailyWord,
+  Sermon,
 } from "./types";
 
 /** Latest published Daily Word (never later than today). */
@@ -96,6 +97,68 @@ export async function getChurchSettings(): Promise<ChurchSettings> {
     .maybeSingle();
   if (error || !data) return FALLBACK_SETTINGS;
   return data as ChurchSettings;
+}
+
+/**
+ * The featured sermon: the one the pastor marked featured, or the
+ * newest published sermon if none is marked.
+ */
+export async function getFeaturedSermon(): Promise<Sermon | null> {
+  const supabase = createPublicClient();
+  if (!supabase) return null;
+  const { data: featured } = await supabase
+    .from("sermons")
+    .select("*")
+    .eq("published", true)
+    .eq("is_featured", true)
+    .order("sermon_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (featured) return featured as Sermon;
+
+  const { data: newest } = await supabase
+    .from("sermons")
+    .select("*")
+    .eq("published", true)
+    .order("sermon_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (newest as Sermon | null) ?? null;
+}
+
+/** One page of published sermons, newest first. */
+export async function getSermons(
+  page = 1,
+  pageSize = 12
+): Promise<{ sermons: Sermon[]; hasMore: boolean }> {
+  const supabase = createPublicClient();
+  if (!supabase) return { sermons: [], hasMore: false };
+  const from = (page - 1) * pageSize;
+  const { data, error } = await supabase
+    .from("sermons")
+    .select("*")
+    .eq("published", true)
+    .order("sermon_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(from, from + pageSize); // one extra row to detect another page
+  if (error || !data) return { sermons: [], hasMore: false };
+  return {
+    sermons: data.slice(0, pageSize) as Sermon[],
+    hasMore: data.length > pageSize,
+  };
+}
+
+export async function getSermonById(id: string): Promise<Sermon | null> {
+  const supabase = createPublicClient();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("sermons")
+    .select("*")
+    .eq("id", id)
+    .eq("published", true)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as Sermon;
 }
 
 /** The active announcement banner, if one is currently running. */

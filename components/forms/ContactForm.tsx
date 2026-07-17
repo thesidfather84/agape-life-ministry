@@ -48,6 +48,20 @@ export default function ContactForm() {
         </div>
       </div>
       <div>
+        <label htmlFor="ct-subject" className={label}>
+          Subject{" "}
+          <span className="font-normal text-midnight-600">(optional)</span>
+        </label>
+        <input
+          id="ct-subject"
+          name="subject"
+          type="text"
+          maxLength={200}
+          className={field}
+          placeholder="What is this about?"
+        />
+      </div>
+      <div>
         <label htmlFor="ct-message" className={label}>
           Your message
         </label>

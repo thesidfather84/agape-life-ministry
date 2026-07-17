@@ -7,6 +7,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: SITE_URL, lastModified: now, changeFrequency: "daily", priority: 1 },
     { url: `${SITE_URL}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE_URL}/events`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${SITE_URL}/sermons`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
     { url: `${SITE_URL}/daily-word`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${SITE_URL}/visit`, lastModified: now, changeFrequency: "monthly", priority: 0.9 },
     { url: `${SITE_URL}/contact`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },

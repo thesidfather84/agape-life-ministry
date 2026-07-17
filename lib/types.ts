@@ -69,9 +69,26 @@ export interface ContactMessage {
   id: string;
   name: string;
   contact: string;
+  subject: string | null;
   message: string;
   is_read: boolean;
   created_at: string;
+}
+
+export interface Sermon {
+  id: string;
+  title: string;
+  speaker_name: string;
+  sermon_date: string; // ISO date
+  scripture_reference: string | null;
+  description: string | null;
+  facebook_url: string;
+  embed_url: string | null;
+  thumbnail_url: string | null;
+  is_featured: boolean;
+  published: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SmsOptin {

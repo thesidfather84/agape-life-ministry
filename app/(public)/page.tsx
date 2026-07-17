@@ -3,6 +3,7 @@ import { ArrowRight, HeartHandshake, Mail } from "lucide-react";
 import Hero from "@/components/home/Hero";
 import Welcome from "@/components/home/Welcome";
 import AboutAgape from "@/components/home/AboutAgape";
+import LatestSermon from "@/components/home/LatestSermon";
 import MomentOfPeace from "@/components/home/MomentOfPeace";
 import DailyWordCard from "@/components/daily-word/DailyWordCard";
 import EventCard from "@/components/events/EventCard";
@@ -43,6 +44,8 @@ export default async function HomePage() {
           </Link>
         </p>
       </Section>
+
+      <LatestSermon />
 
       <Section tone="white" id="events">
         <SectionHeading

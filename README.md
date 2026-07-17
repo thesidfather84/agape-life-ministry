@@ -21,8 +21,37 @@ designed for deployment on Netlify at **https://agapelifeministry.org**.
 - Installable as a lightweight app (Add to Home Screen), SEO metadata,
   sitemap, robots.txt, and Church/PlaceOfWorship structured data
 
+**Sermons**
+- Public `/sermons` page: featured newest sermon plus a responsive
+  archive grid with pagination, and a "Latest Sermon" homepage section
+- Pastor workflow (under one minute): post the sermon as a public
+  Facebook Reel → open the admin → paste the Reel link → Publish
+- Accepts facebook.com/reel/…, facebook.com/share/r/…,
+  facebook.com/watch/…, and fb.watch/… links; non-Facebook URLs are
+  rejected. Links that Facebook can't embed automatically show a clean
+  "Watch on Facebook" card instead of a broken player. Videos never
+  autoplay and only load when tapped.
+- Note: this uses a safe manual paste workflow. Automatic syncing from
+  a personal Facebook profile is not possible and is not attempted.
+
+**Pastor email notifications (Resend)**
+- After a contact message, prayer request, "I'm New" card, or text
+  signup saves to Supabase, the pastor receives a branded email at the
+  address in `PASTOR_NOTIFICATION_EMAIL` with an "Open Pastor
+  Dashboard" button
+- Confidential prayer requests never include the request text or
+  personal details in the email — only a prompt to sign in
+- Contact emails set Reply-To to the visitor's email so the pastor can
+  reply straight from Gmail
+- Email delivery failures never block a submission: the record is
+  already saved and the visitor still sees the success message
+- Sending is server-side only; forms are also protected by a honeypot
+  and per-IP rate limiting (admin login attempts are rate limited too)
+
 **Admin area (`/admin`)** — plain language, large buttons
 - Post Today's Scripture (with live preview, draft/publish)
+- Add New Sermon (paste a Facebook Reel link; preview, draft/publish,
+  feature, edit, delete with confirmation)
 - Add / edit / delete events (with a confirmation step)
 - Edit church information (phone and email start as clearly marked placeholders)
 - View prayer requests (private, confidential flag supported)
@@ -48,6 +77,10 @@ designed for deployment on Netlify at **https://agapelifeministry.org**.
 2. In the Supabase dashboard, open **SQL Editor** and run the contents of
    [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql)
    — this creates every table and all Row Level Security policies.
+   Then run
+   [`supabase/migrations/0002_sermons_and_email.sql`](supabase/migrations/0002_sermons_and_email.sql)
+   — this adds the sermons table (with its own RLS) and the optional
+   contact-message subject line.
 3. Then run [`supabase/seed.sql`](supabase/seed.sql) — this adds the church
    information, a sample Daily Word, and the standing Sunday Worship
    services so the site is never empty.
@@ -83,10 +116,15 @@ before setup is finished.
    `netlify.toml` already sets the build command (`npm run build`) and
    the official Next.js runtime plugin — accept the detected settings.
 3. Before the first deploy (or under **Site configuration → Environment
-   variables**), add the three values from `.env.example`:
+   variables**), add the values from `.env.example`:
    - `NEXT_PUBLIC_SITE_URL` = `https://agapelifeministry.org`
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `RESEND_API_KEY` (see the email setup section below)
+   - `PASTOR_NOTIFICATION_EMAIL` = `arthurwarning49@gmail.com`
+   - `EMAIL_FROM_ADDRESS` = `website@agapelifeministry.org`
+     (only after the domain is verified in Resend — leave it out until
+     then and the site uses Resend's testing sender)
 4. Deploy the site.
 5. Connect the domain: **Domain management → Add a domain →**
    `agapelifeministry.org`, then follow Netlify's DNS instructions at
@@ -106,6 +144,52 @@ git branch -M main
 git push -u origin main
 ```
 
+## 4. Set up pastor email notifications (Resend)
+
+The website emails `arthurwarning49@gmail.com` whenever someone sends a
+contact message, prayer request, "I'm New" card, or text signup. Exact
+steps:
+
+1. Create a free account at [resend.com](https://resend.com).
+2. In Resend, open **Domains → Add Domain** and enter
+   `agapelifeministry.org`. The from address
+   `website@agapelifeministry.org` only works after this domain is
+   verified.
+3. Resend shows DNS records to add (typically an MX and a TXT record on
+   the `send` subdomain for SPF, plus a `resend._domainkey` TXT record
+   for DKIM, and optionally a DMARC TXT record). Add each one in your
+   active **Netlify DNS zone**: Netlify → **Domains →
+   agapelifeministry.org → DNS records → Add new record**, copying the
+   type, name, and value exactly as Resend displays them. Click
+   **Verify** in Resend once added (DNS can take up to an hour).
+4. In Resend, open **API Keys → Create API Key** (sending access is
+   enough) and copy the key — it is shown only once.
+5. In Netlify, add environment variable `RESEND_API_KEY` with that key.
+6. Add `PASTOR_NOTIFICATION_EMAIL` = `arthurwarning49@gmail.com`.
+7. Add `EMAIL_FROM_ADDRESS` = `website@agapelifeministry.org`.
+   **Until step 3's verification is complete**, leave this variable out:
+   the site automatically falls back to Resend's approved testing
+   sender (`onboarding@resend.dev`) so development and early testing
+   still deliver. (Resend's testing sender can only deliver to the
+   email address that owns the Resend account.)
+8. Redeploy the site (Netlify → **Deploys → Trigger deploy**) so the new
+   variables take effect.
+9. Test each form on the live site: Contact, Prayer Request (both with
+   and without the confidential box), the "I'm New" card on Visit Us,
+   and the text signup. Each should show its success message and
+   deliver an email.
+10. Confirm the confidential prayer request email contains **no request
+    text and no personal details** — only a notice and a dashboard
+    link. The full request is visible only after signing in at
+    `/admin/prayer-requests`.
+
+Notes:
+- The Resend key is used only in server-side code and is never sent to
+  the browser.
+- If email ever fails (bad key, provider outage), submissions still
+  save to Supabase and visitors still see the success message; the
+  failure is logged without exposing secrets or request content.
+
 ## Handing the site to the pastor
 
 Give the pastor two things:
@@ -115,8 +199,15 @@ Give the pastor two things:
 2. Their email and password from step 1.4.
 
 Everything in the dashboard is written in plain language: *Post Today's
-Scripture*, *Add an Event*, *Edit Church Information*, *View Prayer
-Requests*, *View Contact Messages*, *Manage Homepage Announcement*.
+Scripture*, *Add New Sermon*, *Add an Event*, *Edit Church Information*,
+*View Prayer Requests*, *View Contact Messages*, *Manage Homepage
+Announcement*.
+
+**Posting a sermon (under a minute):** post the sermon as a public Reel
+on Facebook → open the admin → *Add New Sermon* → paste the Reel link
+(Share → Copy Link) → *Publish Sermon*. Older sermons stay on the
+Sermons page automatically, and the *Feature* button chooses which
+sermon appears at the top and on the homepage.
 
 Placeholders that still need real values are clearly marked inside
 **Edit Church Information** (church phone number and email).

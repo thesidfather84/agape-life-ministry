@@ -87,6 +87,11 @@ export default async function AdminMessagesPage() {
                 <p className="mt-1 text-sm text-midnight-700">
                   Reply to: {message.contact}
                 </p>
+                {message.subject && (
+                  <p className="mt-2 font-medium text-midnight-900">
+                    Subject: {message.subject}
+                  </p>
+                )}
                 <p className="mt-4 whitespace-pre-line text-midnight-800">
                   {message.message}
                 </p>

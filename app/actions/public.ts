@@ -1,10 +1,16 @@
 "use server";
 
+import { headers } from "next/headers";
 import { createPublicClient } from "@/lib/supabase/public";
+import { sendPastorNotification, submittedAt, type EmailField } from "@/lib/email";
+import { checkRateLimit } from "@/lib/rate-limit";
 import type { FormState } from "@/lib/form-state";
 
 const NOT_CONFIGURED =
   "The website is not connected to its database yet. Please try again later or contact the church directly.";
+
+const TOO_MANY =
+  "You've sent several submissions in a short time. Please wait a few minutes and try again.";
 
 function trimmed(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -16,11 +22,27 @@ function isBot(formData: FormData): boolean {
   return trimmed(formData, "website") !== "";
 }
 
+async function clientKey(form: string): Promise<string> {
+  const h = await headers();
+  const ip =
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    h.get("x-real-ip") ||
+    "unknown";
+  return `${form}:${ip}`;
+}
+
+function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);
+}
+
 export async function submitPrayerRequest(
   _prev: FormState,
   formData: FormData
 ): Promise<FormState> {
   if (isBot(formData)) return { status: "success", message: "Thank you." };
+  if (!checkRateLimit(await clientKey("prayer"), 5, 10 * 60_000)) {
+    return { status: "error", message: TOO_MANY };
+  }
 
   const request = trimmed(formData, "request");
   if (request.length < 3) {
@@ -39,11 +61,15 @@ export async function submitPrayerRequest(
   const supabase = createPublicClient();
   if (!supabase) return { status: "error", message: NOT_CONFIGURED };
 
+  const name = trimmed(formData, "name") || null;
+  const contact = trimmed(formData, "contact") || null;
+  const confidential = formData.get("confidential") === "on";
+
   const { error } = await supabase.from("prayer_requests").insert({
-    name: trimmed(formData, "name") || null,
-    contact: trimmed(formData, "contact") || null,
+    name,
+    contact,
     request,
-    confidential: formData.get("confidential") === "on",
+    confidential,
   });
 
   if (error) {
@@ -52,6 +78,34 @@ export async function submitPrayerRequest(
       message:
         "We couldn't send your request just now. Please try again in a moment.",
     };
+  }
+
+  // Notify the pastor. Confidential requests never place the request
+  // text or personal details in the email — only a sign-in prompt.
+  if (confidential) {
+    await sendPastorNotification({
+      subject: "New Confidential Prayer Request — Agape Life Ministry",
+      heading: "New Confidential Prayer Request",
+      intro:
+        "A new confidential prayer request was submitted. Please sign in to the secure pastor dashboard to read it.",
+      fields: [{ label: "Submitted", value: submittedAt() }],
+      buttonLabel: "Open Prayer Requests",
+      buttonPath: "/admin/prayer-requests",
+    });
+  } else {
+    const fields: EmailField[] = [
+      { label: "Name", value: name ?? "Not given" },
+      { label: "Contact", value: contact ?? "Not given" },
+      { label: "Prayer request", value: request },
+      { label: "Submitted", value: submittedAt() },
+    ];
+    await sendPastorNotification({
+      subject: "New Prayer Request — Agape Life Ministry",
+      heading: "New Prayer Request",
+      fields,
+      buttonLabel: "Open Prayer Requests",
+      buttonPath: "/admin/prayer-requests",
+    });
   }
 
   return {
@@ -66,9 +120,13 @@ export async function submitContactMessage(
   formData: FormData
 ): Promise<FormState> {
   if (isBot(formData)) return { status: "success", message: "Thank you." };
+  if (!checkRateLimit(await clientKey("contact"), 5, 10 * 60_000)) {
+    return { status: "error", message: TOO_MANY };
+  }
 
   const name = trimmed(formData, "name");
   const contact = trimmed(formData, "contact");
+  const subject = trimmed(formData, "subject");
   const message = trimmed(formData, "message");
 
   if (!name) return { status: "error", message: "Please tell us your name." };
@@ -81,7 +139,7 @@ export async function submitContactMessage(
   if (message.length < 3) {
     return { status: "error", message: "Please write a short message." };
   }
-  if (message.length > 5000) {
+  if (message.length > 5000 || subject.length > 200) {
     return {
       status: "error",
       message: "Your message is a little long — please shorten it and try again.",
@@ -93,7 +151,7 @@ export async function submitContactMessage(
 
   const { error } = await supabase
     .from("contact_messages")
-    .insert({ name, contact, message });
+    .insert({ name, contact, subject: subject || null, message });
 
   if (error) {
     return {
@@ -102,6 +160,23 @@ export async function submitContactMessage(
         "We couldn't send your message just now. Please try again in a moment.",
     };
   }
+
+  const isEmail = looksLikeEmail(contact);
+  await sendPastorNotification({
+    subject: "New Website Contact Message — Agape Life Ministry",
+    heading: "New Contact Message",
+    fields: [
+      { label: "Name", value: name },
+      { label: isEmail ? "Email" : "Phone / contact", value: contact },
+      { label: "Subject", value: subject || "Not given" },
+      { label: "Message", value: message },
+      { label: "Submitted", value: submittedAt() },
+    ],
+    buttonLabel: "Open Message Inbox",
+    buttonPath: "/admin/messages",
+    // Lets the pastor hit Reply in Gmail and reach the visitor directly.
+    ...(isEmail ? { replyTo: contact } : {}),
+  });
 
   return {
     status: "success",
@@ -114,6 +189,9 @@ export async function submitSmsOptin(
   formData: FormData
 ): Promise<FormState> {
   if (isBot(formData)) return { status: "success", message: "Thank you." };
+  if (!checkRateLimit(await clientKey("sms"), 5, 10 * 60_000)) {
+    return { status: "error", message: TOO_MANY };
+  }
 
   const firstName = trimmed(formData, "first_name");
   const phone = trimmed(formData, "phone");
@@ -152,6 +230,19 @@ export async function submitSmsOptin(
     };
   }
 
+  await sendPastorNotification({
+    subject: "New Scripture Text Signup — Agape Life Ministry",
+    heading: "New Scripture Text Signup",
+    fields: [
+      { label: "First name", value: firstName },
+      { label: "Mobile number", value: phone },
+      { label: "Consent", value: "Confirmed — agreed to receive text messages" },
+      { label: "Submitted", value: submittedAt() },
+    ],
+    buttonLabel: "Open Signup List",
+    buttonPath: "/admin/messages",
+  });
+
   return {
     status: "success",
     message: `Thank you, ${firstName}! You're on the list. Text messages will begin once our messaging service launches.`,
@@ -163,6 +254,9 @@ export async function submitWelcomeCard(
   formData: FormData
 ): Promise<FormState> {
   if (isBot(formData)) return { status: "success", message: "Thank you." };
+  if (!checkRateLimit(await clientKey("welcome"), 5, 10 * 60_000)) {
+    return { status: "error", message: TOO_MANY };
+  }
 
   const firstName = trimmed(formData, "first_name");
   if (!firstName) {
@@ -170,6 +264,7 @@ export async function submitWelcomeCard(
   }
   const wantsContact = formData.get("wants_contact") === "on";
   const contact = trimmed(formData, "contact");
+  const questions = trimmed(formData, "questions");
   if (wantsContact && !contact) {
     return {
       status: "error",
@@ -184,7 +279,7 @@ export async function submitWelcomeCard(
   const { error } = await supabase.from("welcome_cards").insert({
     first_name: firstName,
     contact: contact || null,
-    questions: trimmed(formData, "questions") || null,
+    questions: questions || null,
     wants_contact: wantsContact,
   });
 
@@ -194,6 +289,25 @@ export async function submitWelcomeCard(
       message: "We couldn't save your card just now. Please try again soon.",
     };
   }
+
+  await sendPastorNotification({
+    subject: "New Visitor Connection — Agape Life Ministry",
+    heading: "New Visitor Connection",
+    fields: [
+      { label: "First name", value: firstName },
+      { label: "Email or phone", value: contact || "Not given" },
+      { label: "Questions", value: questions || "None" },
+      {
+        label: "Wants contact",
+        value: wantsContact
+          ? "Yes — they asked someone from the church to reach out"
+          : "No",
+      },
+      { label: "Submitted", value: submittedAt() },
+    ],
+    buttonLabel: "Open Visitor Inbox",
+    buttonPath: "/admin/messages",
+  });
 
   return {
     status: "success",

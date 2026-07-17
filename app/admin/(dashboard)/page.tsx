@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   BookOpen,
   CalendarPlus,
+  Clapperboard,
   HeartHandshake,
   Mail,
   Megaphone,
@@ -15,6 +16,12 @@ const BUTTONS = [
     icon: BookOpen,
     title: "Post Today's Scripture",
     text: "Share a scripture and a short message with everyone.",
+  },
+  {
+    href: "/admin/sermons/new",
+    icon: Clapperboard,
+    title: "Add New Sermon",
+    text: "Paste your Facebook Reel link and publish the sermon.",
   },
   {
     href: "/admin/events/new",
