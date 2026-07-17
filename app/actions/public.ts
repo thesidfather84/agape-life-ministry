@@ -31,10 +31,6 @@ async function clientKey(form: string): Promise<string> {
   return `${form}:${ip}`;
 }
 
-function looksLikeEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);
-}
-
 export async function submitPrayerRequest(
   _prev: FormState,
   formData: FormData
@@ -115,74 +111,9 @@ export async function submitPrayerRequest(
   };
 }
 
-export async function submitContactMessage(
-  _prev: FormState,
-  formData: FormData
-): Promise<FormState> {
-  if (isBot(formData)) return { status: "success", message: "Thank you." };
-  if (!checkRateLimit(await clientKey("contact"), 5, 10 * 60_000)) {
-    return { status: "error", message: TOO_MANY };
-  }
-
-  const name = trimmed(formData, "name");
-  const contact = trimmed(formData, "contact");
-  const subject = trimmed(formData, "subject");
-  const message = trimmed(formData, "message");
-
-  if (!name) return { status: "error", message: "Please tell us your name." };
-  if (!contact) {
-    return {
-      status: "error",
-      message: "Please include an email or phone number so we can reply.",
-    };
-  }
-  if (message.length < 3) {
-    return { status: "error", message: "Please write a short message." };
-  }
-  if (message.length > 5000 || subject.length > 200) {
-    return {
-      status: "error",
-      message: "Your message is a little long — please shorten it and try again.",
-    };
-  }
-
-  const supabase = createPublicClient();
-  if (!supabase) return { status: "error", message: NOT_CONFIGURED };
-
-  const { error } = await supabase
-    .from("contact_messages")
-    .insert({ name, contact, subject: subject || null, message });
-
-  if (error) {
-    return {
-      status: "error",
-      message:
-        "We couldn't send your message just now. Please try again in a moment.",
-    };
-  }
-
-  const isEmail = looksLikeEmail(contact);
-  await sendPastorNotification({
-    subject: "New Website Contact Message — Agape Life Ministry",
-    heading: "New Contact Message",
-    fields: [
-      { label: "Name", value: name },
-      { label: isEmail ? "Email" : "Phone / contact", value: contact },
-      { label: "Subject", value: subject || "Not given" },
-      { label: "Message", value: message },
-      { label: "Submitted", value: submittedAt() },
-    ],
-    buttonLabel: "Open Message Inbox",
-    buttonPath: "/admin/messages",
-    // Lets the pastor hit Reply in Gmail and reach the visitor directly.
-    ...(isEmail ? { replyTo: contact } : {}),
-  });
-
-  return {
-    status: "success",
-    message: "Thank you for reaching out. We will get back to you soon.",
-  };
-}
+// The contact form posts JSON to /api/contact (see
+// app/api/contact/route.ts) instead of using a Server Action, so
+// cached pages can never reference a stale action ID after a deploy.
 
 export async function submitSmsOptin(
   _prev: FormState,

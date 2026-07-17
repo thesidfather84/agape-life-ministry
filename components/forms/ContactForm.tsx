@@ -1,23 +1,64 @@
 "use client";
 
-import { useActionState } from "react";
-import { submitContactMessage } from "@/app/actions/public";
-import { initialFormState } from "@/lib/form-state";
+import { useState } from "react";
+import { initialFormState, type FormState } from "@/lib/form-state";
 import { btn, field, label } from "@/lib/ui";
 import FormMessage, { HoneypotField } from "./FormMessage";
 
 export default function ContactForm() {
-  const [state, formAction, pending] = useActionState(
-    submitContactMessage,
-    initialFormState
-  );
+  const [state, setState] = useState<FormState>(initialFormState);
+  const [pending, setPending] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = Object.fromEntries(
+      new FormData(event.currentTarget).entries()
+    );
+
+    setPending(true);
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const result = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        message?: string;
+      } | null;
+
+      if (response.ok && result?.ok) {
+        setState({
+          status: "success",
+          message:
+            result.message ??
+            "Thank you for reaching out. We will get back to you soon.",
+        });
+      } else {
+        setState({
+          status: "error",
+          message:
+            result?.message ??
+            "We couldn't send your message just now. Please try again in a moment.",
+        });
+      }
+    } catch {
+      setState({
+        status: "error",
+        message:
+          "We couldn't send your message. Please check your connection and try again.",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
 
   if (state.status === "success") {
     return <FormMessage state={state} />;
   }
 
   return (
-    <form action={formAction} className="space-y-5" noValidate>
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
       <HoneypotField />
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
